@@ -1,0 +1,38 @@
+=== RQ1 features (22 total) ===
+  01. pop_weighted_total_access
+  02. pop_weighted_utilitarian_access
+  03. pop_weighted_leisure_social_access
+  04. type_code
+  05. avg_sted
+  06. KAfstV
+  07. life_stage_code
+  08. pct_has_car
+  09. pct_has_license
+  10. pct_has_ebike
+  11. habit_bike_freq
+  12. habit_car_freq
+  13. avg_dist_gp_km
+  14. avg_dist_super_km
+  15. pct_single_family
+  16. pct_cycling_season
+  17. pct_weekend
+  18. ls_Family w/ Kids
+  19. ls_Mid-life No Kids (30-54)
+  20. ls_Older Adult (55-69)
+  21. ls_Senior (70+)
+  22. ls_Young Adult (18-29)
+
+=== RQ2 features (13 total) ===
+  01. pop_weighted_utilitarian_access
+  02. pop_weighted_leisure_social_access
+  03. pop_weighted_total_access
+  04. KAfstV
+  05. type_code
+  06. avg_sted
+  07. pct_has_car
+  08. pct_has_license
+  09. habit_car_freq
+  10. habit_bike_freq
+  11. avg_dist_gp_km
+  12. avg_dist_super_km
+  13. pct_single_family

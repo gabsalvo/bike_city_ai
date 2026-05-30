@@ -1,0 +1,42 @@
+# ── Secrets & env ──────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Node / Next.js ─────────────────────────────────────────────
+node_modules/
+.next/
+out/
+build/
+.vercel/
+*.tsbuildinfo
+next-env.d.ts
+.pnp.*
+.yarn/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# ── Python ─────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# ── Large / regenerable source data (too big for GitHub) ───────
+# 17 GB buurt-to-buurt bike travel-time matrix — excluded by size.
+# Re-download from the SmartwayZ source if you need to rebuild the bike-shed.
+proyect/data/
+proyect.zip
+
+# ── OS / editor cruft ──────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.pem
+*.log
+
+# Leftover scratch scripts that contain a hardcoded API key — never commit
+test-gemini*.js

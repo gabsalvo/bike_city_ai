@@ -1,0 +1,125 @@
+RQ1 regression results (trip-level weighted linear probability,
+robust HC1 SE, weights rescaled within year)
+======================================================================
+
+N cyclable Brabant trips used: 14635
+By dominant_type: {'Mixed gemeente': 11279, 'High-density urban gemeente': 2841, 'VINEX-like gemeente': 515}
+
+MODEL A: is_bike ~ access_z * life_stage
+                            WLS Regression Results                            
+==============================================================================
+Dep. Variable:                is_bike   R-squared:                       0.043
+Model:                            WLS   Adj. R-squared:                  0.042
+Method:                 Least Squares   F-statistic:                     47.94
+Date:                Sat, 16 May 2026   Prob (F-statistic):          4.28e-104
+Time:                        18:44:20   Log-Likelihood:                -9891.8
+No. Observations:               14635   AIC:                         1.981e+04
+Df Residuals:                   14623   BIC:                         1.990e+04
+Df Model:                          11                                         
+Covariance Type:                  HC1                                         
+==================================================================================================================================================================
+                                                                                                     coef    std err          z      P>|z|      [0.025      0.975]
+------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Intercept                                                                                          0.3313      0.011     28.879      0.000       0.309       0.354
+C(life_stage, Treatment(reference='Young Adult (18-29)'))[T.Child/Teen (<18)]                      0.1892      0.017     11.438      0.000       0.157       0.222
+C(life_stage, Treatment(reference='Young Adult (18-29)'))[T.Family w/ Kids]                       -0.0719      0.014     -5.148      0.000      -0.099      -0.045
+C(life_stage, Treatment(reference='Young Adult (18-29)'))[T.Mid-life No Kids (30-54)]             -0.1294      0.015     -8.509      0.000      -0.159      -0.100
+C(life_stage, Treatment(reference='Young Adult (18-29)'))[T.Older Adult (55-69)]                  -0.0313      0.014     -2.192      0.028      -0.059      -0.003
+C(life_stage, Treatment(reference='Young Adult (18-29)'))[T.Senior (70+)]                         -0.0133      0.015     -0.861      0.389      -0.044       0.017
+access_z                                                                                           0.0540      0.010      5.168      0.000       0.034       0.074
+access_z:C(life_stage, Treatment(reference='Young Adult (18-29)'))[T.Child/Teen (<18)]            -0.0395      0.016     -2.486      0.013      -0.071      -0.008
+access_z:C(life_stage, Treatment(reference='Young Adult (18-29)'))[T.Family w/ Kids]              -0.0477      0.013     -3.638      0.000      -0.073      -0.022
+access_z:C(life_stage, Treatment(reference='Young Adult (18-29)'))[T.Mid-life No Kids (30-54)]    -0.0004      0.015     -0.027      0.978      -0.030       0.029
+access_z:C(life_stage, Treatment(reference='Young Adult (18-29)'))[T.Older Adult (55-69)]         -0.0533      0.014     -3.898      0.000      -0.080      -0.027
+access_z:C(life_stage, Treatment(reference='Young Adult (18-29)'))[T.Senior (70+)]                -0.0735      0.015     -4.748      0.000      -0.104      -0.043
+==============================================================================
+Omnibus:                     6595.135   Durbin-Watson:                   0.993
+Prob(Omnibus):                  0.000   Jarque-Bera (JB):             1979.758
+Skew:                           0.718   Prob(JB):                         0.00
+Kurtosis:                       1.912   Cond. No.                         8.04
+==============================================================================
+
+Notes:
+[1] Standard Errors are heteroscedasticity robust (HC1)
+
+MODEL B: is_bike ~ access_z * dominant_type
+                            WLS Regression Results                            
+==============================================================================
+Dep. Variable:                is_bike   R-squared:                       0.001
+Model:                            WLS   Adj. R-squared:                  0.001
+Method:                 Least Squares   F-statistic:                     3.189
+Date:                Sat, 16 May 2026   Prob (F-statistic):            0.00702
+Time:                        18:44:20   Log-Likelihood:                -10204.
+No. Observations:               14635   AIC:                         2.042e+04
+Df Residuals:                   14629   BIC:                         2.047e+04
+Df Model:                           5                                         
+Covariance Type:                  HC1                                         
+========================================================================================================================================================================
+                                                                                                           coef    std err          z      P>|z|      [0.025      0.975]
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Intercept                                                                                                0.3461      0.032     10.924      0.000       0.284       0.408
+C(dominant_type, Treatment(reference='High-density urban gemeente'))[T.Mixed gemeente]                  -0.0298      0.032     -0.925      0.355      -0.093       0.033
+C(dominant_type, Treatment(reference='High-density urban gemeente'))[T.VINEX-like gemeente]             -0.1859      0.278     -0.668      0.504      -0.731       0.359
+access_z                                                                                                 0.0043      0.018      0.238      0.812      -0.031       0.040
+access_z:C(dominant_type, Treatment(reference='High-density urban gemeente'))[T.Mixed gemeente]          0.0039      0.020      0.197      0.844      -0.035       0.043
+access_z:C(dominant_type, Treatment(reference='High-density urban gemeente'))[T.VINEX-like gemeente]    -0.1727      0.269     -0.642      0.521      -0.700       0.355
+==============================================================================
+Omnibus:                    19343.493   Durbin-Watson:                   0.976
+Prob(Omnibus):                  0.000   Jarque-Bera (JB):             2398.176
+Skew:                           0.776   Prob(JB):                         0.00
+Kurtosis:                       1.766   Cond. No.                         121.
+==============================================================================
+
+Notes:
+[1] Standard Errors are heteroscedasticity robust (HC1)
+
+MODEL C: combined 2-way interactions
+                            WLS Regression Results                            
+==============================================================================
+Dep. Variable:                is_bike   R-squared:                       0.047
+Model:                            WLS   Adj. R-squared:                  0.045
+Method:                 Least Squares   F-statistic:                     23.45
+Date:                Sat, 16 May 2026   Prob (F-statistic):          1.80e-105
+Time:                        18:44:20   Log-Likelihood:                -9862.4
+No. Observations:               14635   AIC:                         1.978e+04
+Df Residuals:                   14609   BIC:                         1.997e+04
+Df Model:                          25                                         
+Covariance Type:                  HC1                                         
+=====================================================================================================================================================
+                                                                                        coef    std err          z      P>|z|      [0.025      0.975]
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+Intercept                                                                             0.4960      0.056      8.843      0.000       0.386       0.606
+C(life_stage)[T.Family w/ Kids]                                                      -0.2523      0.056     -4.497      0.000      -0.362      -0.142
+C(life_stage)[T.Mid-life No Kids (30-54)]                                            -0.2219      0.059     -3.763      0.000      -0.338      -0.106
+C(life_stage)[T.Older Adult (55-69)]                                                 -0.0771      0.059     -1.316      0.188      -0.192       0.038
+C(life_stage)[T.Senior (70+)]                                                        -0.0619      0.062     -0.993      0.321      -0.184       0.060
+C(life_stage)[T.Young Adult (18-29)]                                                 -0.0563      0.063     -0.899      0.369      -0.179       0.066
+C(dominant_type)[T.Mixed gemeente]                                                    0.0399      0.063      0.637      0.524      -0.083       0.163
+C(dominant_type)[T.VINEX-like gemeente]                                              -0.2511      0.274     -0.916      0.360      -0.789       0.286
+C(life_stage)[T.Family w/ Kids]:C(dominant_type)[T.Mixed gemeente]                   -0.0143      0.066     -0.216      0.829      -0.144       0.116
+C(life_stage)[T.Mid-life No Kids (30-54)]:C(dominant_type)[T.Mixed gemeente]         -0.1208      0.069     -1.746      0.081      -0.256       0.015
+C(life_stage)[T.Older Adult (55-69)]:C(dominant_type)[T.Mixed gemeente]              -0.1687      0.069     -2.460      0.014      -0.303      -0.034
+C(life_stage)[T.Senior (70+)]:C(dominant_type)[T.Mixed gemeente]                     -0.1660      0.073     -2.275      0.023      -0.309      -0.023
+C(life_stage)[T.Young Adult (18-29)]:C(dominant_type)[T.Mixed gemeente]              -0.1715      0.075     -2.301      0.021      -0.318      -0.025
+C(life_stage)[T.Family w/ Kids]:C(dominant_type)[T.VINEX-like gemeente]               0.0231      0.118      0.196      0.845      -0.208       0.254
+C(life_stage)[T.Mid-life No Kids (30-54)]:C(dominant_type)[T.VINEX-like gemeente]    -0.0999      0.137     -0.727      0.467      -0.369       0.169
+C(life_stage)[T.Older Adult (55-69)]:C(dominant_type)[T.VINEX-like gemeente]         -0.3433      0.117     -2.939      0.003      -0.572      -0.114
+C(life_stage)[T.Senior (70+)]:C(dominant_type)[T.VINEX-like gemeente]                -0.3937      0.124     -3.185      0.001      -0.636      -0.151
+C(life_stage)[T.Young Adult (18-29)]:C(dominant_type)[T.VINEX-like gemeente]         -0.0459      0.147     -0.312      0.755      -0.334       0.242
+access_z                                                                              0.0151      0.027      0.563      0.573      -0.037       0.068
+access_z:C(life_stage)[T.Family w/ Kids]                                             -0.0083      0.025     -0.331      0.741      -0.058       0.041
+access_z:C(life_stage)[T.Mid-life No Kids (30-54)]                                    0.0012      0.027      0.044      0.965      -0.052       0.055
+access_z:C(life_stage)[T.Older Adult (55-69)]                                        -0.0703      0.026     -2.747      0.006      -0.120      -0.020
+access_z:C(life_stage)[T.Senior (70+)]                                               -0.0940      0.028     -3.329      0.001      -0.149      -0.039
+access_z:C(life_stage)[T.Young Adult (18-29)]                                        -0.0128      0.029     -0.443      0.658      -0.069       0.044
+access_z:C(dominant_type)[T.Mixed gemeente]                                           0.0316      0.020      1.614      0.107      -0.007       0.070
+access_z:C(dominant_type)[T.VINEX-like gemeente]                                     -0.3521      0.256     -1.375      0.169      -0.854       0.150
+==============================================================================
+Omnibus:                     6253.340   Durbin-Watson:                   0.996
+Prob(Omnibus):                  0.000   Jarque-Bera (JB):             1952.261
+Skew:                           0.714   Prob(JB):                         0.00
+Kurtosis:                       1.922   Cond. No.                         132.
+==============================================================================
+
+Notes:
+[1] Standard Errors are heteroscedasticity robust (HC1)

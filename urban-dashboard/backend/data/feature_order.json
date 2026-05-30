@@ -1,0 +1,50 @@
+{
+  "rq1": [
+    "pop_weighted_total_access",
+    "pop_weighted_utilitarian_access",
+    "pop_weighted_leisure_social_access",
+    "type_code",
+    "avg_sted",
+    "KAfstV",
+    "life_stage_code",
+    "pct_has_car",
+    "pct_has_license",
+    "pct_has_ebike",
+    "habit_bike_freq",
+    "habit_car_freq",
+    "avg_dist_gp_km",
+    "avg_dist_super_km",
+    "pct_single_family",
+    "pct_cycling_season",
+    "pct_weekend",
+    "ls_Family w/ Kids",
+    "ls_Mid-life No Kids (30-54)",
+    "ls_Older Adult (55-69)",
+    "ls_Senior (70+)",
+    "ls_Young Adult (18-29)"
+  ],
+  "rq2": [
+    "pop_weighted_utilitarian_access",
+    "pop_weighted_leisure_social_access",
+    "pop_weighted_total_access",
+    "KAfstV",
+    "type_code",
+    "avg_sted",
+    "pct_has_car",
+    "pct_has_license",
+    "habit_car_freq",
+    "habit_bike_freq",
+    "avg_dist_gp_km",
+    "avg_dist_super_km",
+    "pct_single_family"
+  ],
+  "amenity_groups": [
+    "schools",
+    "groceries",
+    "healthcare",
+    "childcare",
+    "sports",
+    "dining",
+    "transport"
+  ]
+}
