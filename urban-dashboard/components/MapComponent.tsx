@@ -66,7 +66,7 @@ function BuurtenLayer(props: Props) {
   const stateRef = useRef(props);
   stateRef.current = props;
 
-  const styleFn = (feature?: L.GeoJSON.Feature): L.PathOptions => {
+  const styleFn = (feature?: GeoJSON.Feature): L.PathOptions => {
     const { rows, colorMode, selectedAmenity, selectedCode, pbikeDomain } = stateRef.current;
     const code = feature?.properties?.buurtcode as string;
     const selected = code === selectedCode;
@@ -89,7 +89,9 @@ function BuurtenLayer(props: Props) {
         // (If the ring used the map's default renderer it would create a second
         //  canvas on top that swallows clicks meant for the buurten.)
         rendererRef.current = L.canvas({ padding: 0.5 });
-        const layer = L.geoJSON(geo, {
+        // `renderer` is a valid runtime option for path-based layers but isn't
+        // modelled on GeoJSONOptions in @types/leaflet, so widen the type.
+        const opts: L.GeoJSONOptions & { renderer?: L.Renderer } = {
           renderer: rendererRef.current,
           style: styleFn,
           onEachFeature: (feature, lyr) => {
@@ -97,11 +99,12 @@ function BuurtenLayer(props: Props) {
             lyr.on('click', () => stateRef.current.onSelect(code));
             lyr.on('mouseover', () => (lyr as L.Path).bringToFront?.());
           },
-        });
+        };
+        const layer = L.geoJSON(geo, opts);
         layer.addTo(map);
         layer.bindTooltip(
           (lyr) => {
-            const code = (lyr as L.Layer & { feature?: L.GeoJSON.Feature })
+            const code = (lyr as L.Layer & { feature?: GeoJSON.Feature })
               .feature?.properties?.buurtcode as string;
             const r = stateRef.current.rows.get(code);
             return r ? `${r.name} · ${r.gemeente}` : code;
