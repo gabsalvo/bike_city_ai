@@ -104,11 +104,15 @@ def main():
         df[f"amen_{grp}"] = df[present].mean(axis=1) if present else np.nan
 
     # --- build the model feature columns -----------------------------------
-    # Spatial features we can fill from CBS:
+    # Spatial features we can fill from CBS. These MUST match the scale/source
+    # the models were trained on (topic2_final.ipynb cell 6), otherwise the
+    # tree models receive out-of-distribution inputs and misbehave:
+    #   * avg_dist_super_km was trained from KWB `g_afs_kv` (not `g_afs_gs`).
+    #   * pct_single_family was trained on the raw 0-100 percentage (no /100).
     df["avg_sted"] = df["ste_oad"]
     df["avg_dist_gp_km"] = df["g_afs_hp"]
-    df["avg_dist_super_km"] = df["g_afs_gs"]
-    df["pct_single_family"] = df["p_1gezw"] / 100.0
+    df["avg_dist_super_km"] = df["g_afs_kv"]
+    df["pct_single_family"] = df["p_1gezw"]
 
     # Everything the model expects but we can't derive per-buurt -> NaN
     # (the trained imputer fills the training median at inference time).
