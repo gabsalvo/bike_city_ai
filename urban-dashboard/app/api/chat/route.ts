@@ -41,6 +41,28 @@ async function callBackend(path: string, init?: RequestInit) {
   return r.json();
 }
 
+// Gemini Flash periodically returns 503 ("high demand") / 429 (rate limit).
+// Those are transient, so retry with exponential backoff before giving up.
+const TRANSIENT = /\b(503|429|overloaded|unavailable|high demand|rate.?limit)\b/i;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+async function withRetry<T>(fn: () => Promise<T>, tries = 3): Promise<T> {
+  let lastErr: unknown;
+  for (let i = 0; i < tries; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      lastErr = e;
+      if (!TRANSIENT.test(String((e as Error)?.message ?? e))) throw e;
+      if (i < tries - 1) await sleep(400 * 2 ** i); // 400ms, 800ms
+    }
+  }
+  throw lastErr;
+}
+
+// Models tried in order; if the first is overloaded we fall back to the next.
+const MODEL_CHAIN = ['gemini-2.5-flash', 'gemini-2.0-flash'];
+
 export async function POST(req: Request) {
   try {
     const { message, dashboardState, history = [] } = await req.json();
@@ -51,10 +73,7 @@ export async function POST(req: Request) {
       parts: [{ text: m.text }],
     }));
 
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash',
-      tools: [{ functionDeclarations: tools }],
-      systemInstruction: `You are an AI Urban Policy Assistant for Dutch municipalities, embedded in a
+    const systemInstruction = `You are an AI Urban Policy Assistant for Dutch municipalities, embedded in a
 "10-minute bike-shed" equity dashboard. You are an explanation and policy-support layer on top of
 trained predictive models (RQ1 cycling propensity, RQ2 elderly car-dependency) — you never invent
 numbers; you obtain them through the runScenario tool, which calls the real models.
@@ -72,81 +91,105 @@ Rules:
 3. Be honest that Dutch cycling is only weakly access-elastic (unlike the 84% access–usage link found
    for US walking). Don't overstate the effect of adding amenities; emphasise targeting "opportunity"
    neighbourhoods and the trade-offs.
-4. End substantive answers with one short, data-grounded recommendation.`,
-    });
-
-    const chat = model.startChat({ history: formattedHistory });
+4. End substantive answers with one short, data-grounded recommendation.`;
 
     const prompt = `CURRENT DASHBOARD CONTEXT:
 ${JSON.stringify(dashboardState ?? {}, null, 2)}
 
 USER: "${message}"`;
 
-    let result = await chat.sendMessage(prompt);
-    const uiAction: { type: string; payload: Record<string, unknown> } | null = { type: '', payload: {} };
-    let actionToReturn: typeof uiAction = null;
+    type UiAction = { type: string; payload: Record<string, unknown> } | null;
 
-    // function-calling loop (bounded)
-    for (let i = 0; i < 4; i++) {
-      const calls = result.response.functionCalls();
-      if (!calls || calls.length === 0) break;
+    // Run the full tool-calling conversation on a given model. Each Gemini
+    // round-trip is retried on transient (503/429) errors.
+    async function runConversation(modelName: string): Promise<{ text: string; action: UiAction }> {
+      const model = genAI.getGenerativeModel({
+        model: modelName,
+        tools: [{ functionDeclarations: tools }],
+        systemInstruction,
+      });
+      const chat = model.startChat({ history: formattedHistory });
+      let actionToReturn: UiAction = null;
 
-      const responses = [];
-      for (const call of calls) {
-        const args = (call.args ?? {}) as Record<string, unknown>;
-        let data: unknown = { error: 'unknown tool' };
+      let result = await withRetry(() => chat.sendMessage(prompt));
 
-        if (call.name === 'runScenario') {
-          const code = (args.buurtcode as string) || selectedCode;
-          if (!code) {
-            data = { error: 'No neighbourhood selected. Ask the user to pick one first.' };
-          } else {
-            const scenario = {
-              add_schools: Number(args.add_schools ?? 0),
-              add_groceries: Number(args.add_groceries ?? 0),
-              add_healthcare: Number(args.add_healthcare ?? 0),
-              accessibility_pct: Number(args.accessibility_pct ?? 0),
-              model: dashboardState?.scenario?.model || 'logistic_regression',
-            };
-            try {
-              data = await callBackend('/api/predict', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ buurtcode: code, scenario }),
-              });
-              if (args.applyToUI) actionToReturn = { type: 'updateScenario', payload: scenario };
-            } catch {
-              data = { error: 'model backend unreachable' };
-            }
-          }
-        } else if (call.name === 'selectNeighborhood') {
-          try {
-            const hits = await callBackend(`/api/search?q=${encodeURIComponent(String(args.name))}`);
-            if (Array.isArray(hits) && hits.length) {
-              data = hits[0];
-              actionToReturn = { type: 'selectNeighborhood', payload: { buurtcode: hits[0].buurtcode } };
+      for (let i = 0; i < 4; i++) {
+        const calls = result.response.functionCalls();
+        if (!calls || calls.length === 0) break;
+
+        const responses: { functionResponse: { name: string; response: { result: unknown } } }[] = [];
+        for (const call of calls) {
+          const args = (call.args ?? {}) as Record<string, unknown>;
+          let data: unknown = { error: 'unknown tool' };
+
+          if (call.name === 'runScenario') {
+            const code = (args.buurtcode as string) || selectedCode;
+            if (!code) {
+              data = { error: 'No neighbourhood selected. Ask the user to pick one first.' };
             } else {
-              data = { error: 'no match found' };
+              const scenario = {
+                add_schools: Number(args.add_schools ?? 0),
+                add_groceries: Number(args.add_groceries ?? 0),
+                add_healthcare: Number(args.add_healthcare ?? 0),
+                accessibility_pct: Number(args.accessibility_pct ?? 0),
+                model: dashboardState?.scenario?.model || 'logistic_regression',
+              };
+              try {
+                data = await callBackend('/api/predict', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ buurtcode: code, scenario }),
+                });
+                if (args.applyToUI) actionToReturn = { type: 'updateScenario', payload: scenario };
+              } catch {
+                data = { error: 'model backend unreachable' };
+              }
             }
-          } catch {
-            data = { error: 'search failed' };
+          } else if (call.name === 'selectNeighborhood') {
+            try {
+              const hits = await callBackend(`/api/search?q=${encodeURIComponent(String(args.name))}`);
+              if (Array.isArray(hits) && hits.length) {
+                data = hits[0];
+                actionToReturn = { type: 'selectNeighborhood', payload: { buurtcode: hits[0].buurtcode } };
+              } else {
+                data = { error: 'no match found' };
+              }
+            } catch {
+              data = { error: 'search failed' };
+            }
           }
+
+          responses.push({
+            functionResponse: { name: call.name, response: { result: data } },
+          });
         }
 
-        responses.push({
-          functionResponse: { name: call.name, response: { result: data } },
-        });
+        result = await withRetry(() => chat.sendMessage(responses));
       }
 
-      result = await chat.sendMessage(responses);
+      return { text: result.response.text() || 'I could not produce a response.', action: actionToReturn };
     }
 
-    return NextResponse.json({
-      text: result.response.text() || 'I could not produce a response.',
-      action: actionToReturn,
-    });
+    // Try each model in the chain; fall through to the next only on transient errors.
+    let lastErr: unknown;
+    for (const modelName of MODEL_CHAIN) {
+      try {
+        const out = await runConversation(modelName);
+        return NextResponse.json(out);
+      } catch (e) {
+        lastErr = e;
+        if (!TRANSIENT.test(String((e as Error)?.message ?? e))) throw e;
+        console.warn(`Model ${modelName} unavailable, trying next:`, (e as Error)?.message);
+      }
+    }
+    throw lastErr;
   } catch (error) {
     console.error('Gemini API Error:', error);
-    return NextResponse.json({ error: 'Failed to generate response' }, { status: 500 });
+    const msg = String((error as Error)?.message ?? error);
+    const friendly = TRANSIENT.test(msg)
+      ? 'The AI model is busy right now (Google returned "high demand"). Please try again in a few seconds.'
+      : 'Sorry — I hit an error reaching the assistant. Please try again.';
+    // Return 200 with a `text` field so the chat always renders a reply.
+    return NextResponse.json({ text: friendly, action: null, error: msg });
   }
 }

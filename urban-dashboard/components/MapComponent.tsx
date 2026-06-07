@@ -11,6 +11,7 @@ export type ColorMode = 'access-usage' | 'amenity' | 'pbike';
 interface Props {
   rows: Map<string, NbRow>;
   colorMode: ColorMode;
+  pbikeDomain: [number, number]; // [lo, hi] p_bike values mapped to red..green
   selectedAmenity: string;
   selectedCode: string | null;
   bikeshed: Bikeshed | null;
@@ -37,6 +38,7 @@ function colorFor(
   row: NbRow | undefined,
   mode: ColorMode,
   amenity: string,
+  pbikeDomain: [number, number],
 ): string {
   if (!row) return '#e5e7eb';
   if (mode === 'access-usage') {
@@ -45,8 +47,9 @@ function colorFor(
   }
   if (mode === 'pbike') {
     if (row.p_bike === null) return '#e5e7eb';
-    // p_bike roughly 0.25..0.65 across NL -> stretch to 0..1
-    return ramp((row.p_bike - 0.25) / 0.4);
+    // stretch the data's actual 5th–95th percentile range to 0..1 for contrast
+    const [lo, hi] = pbikeDomain;
+    return ramp((row.p_bike - lo) / Math.max(1e-6, hi - lo));
   }
   // amenity audit: coverage class typically 0..2 (higher = better served)
   const v = row[`amen_${amenity}`] as number | null;
@@ -64,11 +67,11 @@ function BuurtenLayer(props: Props) {
   stateRef.current = props;
 
   const styleFn = (feature?: L.GeoJSON.Feature): L.PathOptions => {
-    const { rows, colorMode, selectedAmenity, selectedCode } = stateRef.current;
+    const { rows, colorMode, selectedAmenity, selectedCode, pbikeDomain } = stateRef.current;
     const code = feature?.properties?.buurtcode as string;
     const selected = code === selectedCode;
     return {
-      fillColor: colorFor(rows.get(code), colorMode, selectedAmenity),
+      fillColor: colorFor(rows.get(code), colorMode, selectedAmenity, pbikeDomain),
       fillOpacity: 0.7,
       weight: selected ? 2.5 : 0.3,
       color: selected ? '#111827' : '#9ca3af',
@@ -118,7 +121,7 @@ function BuurtenLayer(props: Props) {
   useEffect(() => {
     layerRef.current?.setStyle(styleFn);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.colorMode, props.selectedAmenity, props.selectedCode, props.rows]);
+  }, [props.colorMode, props.selectedAmenity, props.selectedCode, props.rows, props.pbikeDomain]);
 
   // 3 km bike-shed ring; pan/zoom only when the change came from off the map
   const didInit = useRef(false);

@@ -111,6 +111,19 @@ export default function Dashboard() {
   }, []);
 
   const rowsArr = useMemo(() => Array.from(rows.values()), [rows]);
+
+  // Modelled p_bike has a narrow, model-specific spread (~0.2–0.44). Stretch the
+  // colour ramp to the data's 5th–95th percentile so the choropleth shows real
+  // contrast instead of a flat red/amber wash.
+  const pbikeDomain = useMemo<[number, number]>(() => {
+    const vals = rowsArr
+      .map((r) => r.p_bike)
+      .filter((v): v is number => v != null)
+      .sort((a, b) => a - b);
+    if (vals.length < 20) return [0.2, 0.45];
+    const q = (p: number) => vals[Math.floor(p * (vals.length - 1))];
+    return [q(0.05), q(0.95)];
+  }, [rowsArr]);
   const searchResults = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (q.length < 2) return [];
@@ -160,7 +173,10 @@ export default function Dashboard() {
       if (data.action?.type === 'selectNeighborhood' && data.action.payload?.buurtcode) {
         selectAndPan(data.action.payload.buurtcode);
       }
-      setChat((p) => [...p, { role: 'agent', text: data.text }]);
+      const reply =
+        (typeof data?.text === 'string' && data.text) ||
+        (res.ok ? 'I could not produce a response.' : 'The assistant is unavailable right now. Please try again.');
+      setChat((p) => [...p, { role: 'agent', text: reply }]);
     } catch {
       setChat((p) => [...p, { role: 'agent', text: 'Connection error reaching the assistant.' }]);
     } finally {
@@ -168,7 +184,9 @@ export default function Dashboard() {
     }
   };
 
-  const q = detail ? QUADRANT_META[detail.quadrant as Quadrant] : null;
+  // Quadrant is only meaningful when we actually have an ODiN usage sample;
+  // without one the access×usage classification is undefined (the map greys it).
+  const q = detail && detail.usage_share !== null ? QUADRANT_META[detail.quadrant as Quadrant] : null;
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 lg:p-6 font-sans text-gray-900">
@@ -246,6 +264,7 @@ export default function Dashboard() {
               <MapComponent
                 rows={rows}
                 colorMode={colorMode}
+                pbikeDomain={pbikeDomain}
                 selectedAmenity={selectedAmenity}
                 selectedCode={selectedCode}
                 bikeshed={bikeshed}
@@ -288,8 +307,8 @@ export default function Dashboard() {
               {colorMode === 'pbike' && (
                 <span className="flex items-center gap-1">
                   Modelled cycling propensity:
-                  <span className="w-3 h-3 rounded-sm" style={{ background: '#ef4444' }} /> low
-                  <span className="w-3 h-3 rounded-sm" style={{ background: '#16a34a' }} /> high
+                  <span className="w-3 h-3 rounded-sm" style={{ background: '#ef4444' }} /> low ({pct(pbikeDomain[0], 0)})
+                  <span className="w-3 h-3 rounded-sm" style={{ background: '#16a34a' }} /> high ({pct(pbikeDomain[1], 0)})
                 </span>
               )}
               <span className="text-gray-400">· grey = no ODiN usage sample · dashed ring = 3 km bike-shed</span>
@@ -310,16 +329,23 @@ export default function Dashboard() {
                   <div className="font-semibold text-base">{detail.name}
                     <span className="text-gray-400 font-normal"> · {detail.gemeente}</span>
                   </div>
-                  {q && (
+                  {q ? (
                     <span className="inline-block text-xs px-2 py-0.5 rounded-full text-white" style={{ background: q.color }}>
                       {q.label}
+                    </span>
+                  ) : (
+                    <span className="inline-block text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
+                      No ODiN usage sample — quadrant n/a
                     </span>
                   )}
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1 pt-1">
                     <Stat label="10-min access (amenities)" value={detail.access_index?.toFixed(0) ?? '—'} />
                     <Stat label="Local cycling usage" value={pct(detail.usage_share, 1)} />
-                    <Stat label="Cycling propensity (model)" value={pct(detail.p_bike, 1)} />
-                    <Stat label="Elderly car-risk index" value={pct(detail.car_risk, 0)} />
+                    {/* Prefer the live PDP baseline (same engine as the what-if) so this
+                        number matches the scenario builder below; fall back to the
+                        precomputed value before the prediction loads. */}
+                    <Stat label="Cycling propensity (model)" value={pct(predict?.baseline.p_bike ?? detail.p_bike, 1)} />
+                    <Stat label="Elderly car-risk index" value={pct(predict?.baseline.car_risk ?? detail.car_risk, 0)} />
                     <Stat label="Population" value={detail.population?.toLocaleString() ?? '—'} />
                     <Stat label="Bike-shed buurten (3 km)" value={bikeshed?.n_members ?? '—'} />
                   </div>

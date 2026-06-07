@@ -19,9 +19,15 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from pdp import pdp_predict
+
 HERE = Path(__file__).resolve().parent
 DATA = HERE / "data"
 MODELS = HERE.parent.parent / "data for topic 3" / "models"
+
+# Cap the PDP background so a live what-if stays snappy (a single buurt is
+# scored over the whole sample 4x per request).
+PDP_MAX_ROWS = 4000
 
 ALGOS = {
     "random_forest": "random_forest",
@@ -49,6 +55,39 @@ UTIL_MED = float(DF["bikeshed_utilitarian_amenities"].median())
 REF_UTIL_ACCESS = float(DF["pop_weighted_utilitarian_access"].median())
 REF_LEIS_ACCESS = float(DF["pop_weighted_leisure_social_access"].median())
 
+# Trip-level background samples for Monte-Carlo partial dependence (see pdp.py
+# and build_background.py). A buurt only knows its spatial features; the models
+# also depend on trip-/person-level features that have no buurt value. Scoring a
+# tree model at a single median-imputed point makes it respond to the access
+# levers in arbitrary non-monotone steps; averaging over this real trip
+# distribution restores a smooth, monotone response. Missing -> single-point.
+def _load_background(rq: str):
+    p = DATA / f"{rq}_background.parquet"
+    if not p.exists():
+        return None
+    bg = pd.read_parquet(p)
+    if len(bg) > PDP_MAX_ROWS:
+        bg = bg.sample(PDP_MAX_ROWS, random_state=42).reset_index(drop=True)
+    return bg
+
+
+BACKGROUND = {rq: _load_background(rq) for rq in ("rq1", "rq2")}
+
+
+def _lever_caps():
+    """Min/max of each levered feature in the training background, so a scenario
+    never pushes a feature beyond the range the models actually saw (the tree
+    models extrapolate flat / non-monotone past their last split, and the
+    logistic sigmoid saturates). rq1 background carries all levered columns."""
+    bg = BACKGROUND.get("rq1")
+    cols = ["pop_weighted_utilitarian_access", "pop_weighted_leisure_social_access", "avg_dist_super_km"]
+    if bg is None:
+        return {}
+    return {c: (float(bg[c].min()), float(bg[c].max())) for c in cols if c in bg.columns}
+
+
+LEVER_CAPS = _lever_caps()
+
 
 @lru_cache(maxsize=None)
 def load_model(rq: str, algo: str):
@@ -64,6 +103,13 @@ def load_model(rq: str, algo: str):
 
 def predict(rq: str, feats: list[str], row: pd.Series, algo: str) -> float:
     imp, model = load_model(rq, algo)
+    bg = BACKGROUND.get(rq)
+    if bg is not None:
+        # Partial dependence: pin the buurt's spatial features, marginalise the
+        # rest over the trip background. Equivalent to a single point for the
+        # linear model, monotone-smoothing for the trees.
+        return pdp_predict(model, bg, feats, row)
+    # Fallback (no background built yet): single median-imputed point.
     X = pd.DataFrame([row[feats].astype(float).values], columns=feats)
     Ximp = imp.transform(X)
     return float(model.predict_proba(Ximp)[:, 1][0])
@@ -89,7 +135,11 @@ def apply_scenario(row: pd.Series, sc: "Scenario") -> tuple[pd.Series, dict]:
 
     def bump(col, amount):
         if col in r.index and pd.notna(r[col]):
-            r[col] = r[col] + amount
+            v = r[col] + amount
+            cap = LEVER_CAPS.get(col)
+            if cap is not None:
+                v = min(v, cap[1])   # never extrapolate above the training max
+            r[col] = v
 
     # New schools: utilitarian destinations -> +2 utilitarian-access units each
     if sc.add_schools:
@@ -99,7 +149,8 @@ def apply_scenario(row: pd.Series, sc: "Scenario") -> tuple[pd.Series, dict]:
     # New grocery stores: nearer supermarket + utilitarian-access boost
     if sc.add_groceries:
         if pd.notna(r.get("avg_dist_super_km")):
-            r["avg_dist_super_km"] = max(0.1, r["avg_dist_super_km"] * (0.8 ** sc.add_groceries))
+            floor = LEVER_CAPS.get("avg_dist_super_km", (0.1, None))[0]
+            r["avg_dist_super_km"] = max(floor, r["avg_dist_super_km"] * (0.8 ** sc.add_groceries))
         bump("pop_weighted_utilitarian_access", 3.0 * sc.add_groceries)
         notes.append(f"+{sc.add_groceries} grocery → supermarket distance −{(1-0.8**sc.add_groceries)*100:.0f}%, "
                      f"+{3*sc.add_groceries:.0f} utilitarian-access units")
@@ -116,7 +167,8 @@ def apply_scenario(row: pd.Series, sc: "Scenario") -> tuple[pd.Series, dict]:
         bump("pop_weighted_utilitarian_access", frac * REF_UTIL_ACCESS)
         bump("pop_weighted_leisure_social_access", frac * REF_LEIS_ACCESS)
         if pd.notna(r.get("avg_dist_super_km")):
-            r["avg_dist_super_km"] = r["avg_dist_super_km"] * (1.0 - sc.accessibility_pct / 200.0)
+            floor = LEVER_CAPS.get("avg_dist_super_km", (0.0, None))[0]
+            r["avg_dist_super_km"] = max(floor, r["avg_dist_super_km"] * (1.0 - sc.accessibility_pct / 200.0))
         notes.append(f"accessibility +{sc.accessibility_pct}% → +{frac*REF_UTIL_ACCESS:.0f} utilitarian / "
                      f"+{frac*REF_LEIS_ACCESS:.0f} leisure-access units, supermarket distance reduced")
 
